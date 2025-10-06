@@ -7,6 +7,6 @@ def look_at_my_screen() -> dict:
     """
     take_screenshot()
     print("WATCHER CALLED!")
-    description = watcher_model.generate().text
+    description = watcher_model.generate()
     print(description)
     return {"description": description}  

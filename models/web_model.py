@@ -1,41 +1,32 @@
-from google import genai
-from google.genai import types
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.prompts import PromptTemplate
+import os
+from dotenv import load_dotenv
 import json
 
-client = genai.Client(api_key="AIzaSyAkSmvQGTAMQblIWJPT0ufPzr7vFLgmJog")
+load_dotenv()
 
+llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=os.getenv("GEMINI_API_KEY"))
 
 def get_summarize_text(link):
-    model = "gemini-2.0-flash"
-    config = types.GenerateContentConfig(
-        response_mime_type='text/plain'
-    )
-    response = client.models.generate_content(
-        model=model,
-        contents=[f"Explain me about this page content: {link}\n"],
-        config=config
-    ).text
-    return response
+    response = llm.invoke(f"Explain me about this page content: {link}\n")
+    return response.content
 
 
 def get_xpath(rawHtml, element):
-    model = "gemini-2.0-flash"
-    config = types.GenerateContentConfig(
-        response_mime_type='application/json',
-        response_schema={
-            'required': [
-                'xpath'
-            ],
-            'properties': {
-                'xpath': {'type': 'STRING', 'description': 'The exact XPath by only (href or id or text or unique identifier) of the specified UI element in the DOM.'},
-            },
-            'type': 'OBJECT',
-            'description': 'Extracts the exact XPath by only (href or id or text or unique identifier) of a UI element based on the provided raw HTML and description.',
-        })
-    response = client.models.generate_content(
-        model=model,
-        contents=["I will give the raw html and 'the thing that use want to interact like(open first link in google search page) or input field name username like that or searchbar' give me exact the xpath by only (href or id or text or unique identifier)",
-                  f"UI element: {element}\n", f"Raw html: {rawHtml}\n"],
-        config=config
-    ).text
-    return json.loads(response)
+    parser = JsonOutputParser()
+
+    prompt = PromptTemplate(
+        template="""I will give the raw html and 'the thing that use want to interact like(open first link in google search page) or input field name username like that or searchbar' give me exact the xpath by only (href or id or text or unique identifier)
+        UI element: {element}
+        Raw html: {rawHtml}
+        {format_instructions}
+        """,
+        input_variables=["element", "rawHtml"],
+        partial_variables={"format_instructions": parser.get_format_instructions()},
+    )
+
+    chain = prompt | llm | parser
+    response = chain.invoke({"element": element, "rawHtml": rawHtml})
+    return response

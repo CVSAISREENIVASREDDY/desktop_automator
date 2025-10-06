@@ -1,22 +1,30 @@
-from google.genai import types
-from .client import client
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import HumanMessage
+import os
+from dotenv import load_dotenv
+import base64
+
+load_dotenv()
 
 def generate():
-    model = "gemini-1.5-flash"
-    generate_content_config = types.GenerateContentConfig(
-        temperature=1,
-        top_p=0.95,
-        top_k=40,
-        max_output_tokens=8192,
-        response_mime_type="text/plain",
+    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=os.getenv("GEMINI_API_KEY"))
+
+    # Read the image file and encode it in base64
+    with open("screenshot.png", "rb") as image_file:
+        image_data = base64.b64encode(image_file.read()).decode("utf-8")
+
+    message = HumanMessage(
+        content=[
+            {"type": "text", "text": "Describe what's on my screen."},
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{image_data}"},
+            },
+        ]
     )
-    
-    file = client.files.upload(file="screenshot.png")
-    return client.models.generate_content(
-        model=model,
-        contents=["Describe what's on my screen.", file],
-        config=generate_content_config,
-    )
+
+    response = llm.invoke([message])
+    return response.content
 
 if __name__ == "__main__":
     generate()
