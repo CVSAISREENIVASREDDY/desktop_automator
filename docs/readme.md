@@ -1,4 +1,4 @@
-# Desktop Automator
+# Desktop Automator 
 
 This project is a desktop assistant that can perform various tasks on your computer through a chat interface.
 
