@@ -1,7 +1,7 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
-from models.web_model import get_xpath
+from agents.web import get_xpath
 from selenium.webdriver.common.keys import Keys
 from time import sleep
 from urllib.parse import urljoin
@@ -316,9 +316,9 @@ def click_element_by_description(description: str) -> dict:
     2. Calls `get_xpath` with the HTML and the `description`.
     3. If `get_xpath` returns a valid XPath:
         a. **Stores this XPath globally** for potential use by `type_text_into_element`.
-        b. Checks if the XPath identifies a link (`<a>` tag with an `href` attribute).
-        c. **If it's a link:** It extracts the URL (`href`). If the URL is relative (starts with '/'), it converts it to an absolute URL based on the current page's address. Then, it **navigates the current tab** to this URL using the `navigate_current_tab` function's logic.
-        d. **If it's not a link:** It finds the element using the XPath and performs a standard Selenium click action on it.
+        b. Finds the element using the XPath.
+        c. Checks the element's tag name. If it's an `<a>` tag, it extracts the URL (`href`). If the URL is relative (starts with '/'), it converts it to an absolute URL based on the current page's address. Then, it **navigates the current tab** to this URL.
+        d. **If it's not a link:** It performs a standard Selenium click action on it.
     4. If `get_xpath` fails or returns an invalid XPath, an error is reported.
 
     **Use this function to:** Interact with elements when you can describe them (e.g., "click the 'Submit' button", "find the search input field", "click the link named 'Privacy Policy'").
@@ -350,7 +350,6 @@ def click_element_by_description(description: str) -> dict:
 
         # 2. Call external function to get XPath
         try:
-            # Assuming get_xpath returns a dictionary like {"xpath": "..."} or raises error
             xpath_response = get_xpath(current_html, description)
             if "xpath" not in xpath_response or not xpath_response["xpath"]:
                  print(f"ERROR: get_xpath did not return a valid XPath for '{description}'. Response: {xpath_response}")
@@ -364,61 +363,52 @@ def click_element_by_description(description: str) -> dict:
         # 3a. Store XPath globally
         last_clicked_xpath = xpath
 
-        # 3b & 3c. Check if it's a link and navigate
-        # A simple check: does xpath likely select an 'a' tag AND contain '@href'? More robust checks possible.
-        is_link_xpath = ("//a" in xpath or "/a[" in xpath) and "@href" in xpath
-        if is_link_xpath:
-             # Try finding the element first to extract href reliably
-             try:
-                 link_element = driver.find_element("xpath", xpath)
-                 href = link_element.get_attribute('href')
-                 if href:
-                     print(f"INFO: XPath identifies a link. Extracted href: {href}")
-                     # Handle relative URLs
-                     if href.startswith("/"):
-                         base_url = "/".join(driver.current_url.split("/", 3)[:3])
-                         absolute_url = urljoin(base_url, href)
-                         print(f"INFO: Converted relative URL to absolute: {absolute_url}")
-                     elif href.startswith("http://") or href.startswith("https://"):
-                         absolute_url = href
-                     elif href.startswith("javascript:"):
-                         print(f"INFO: Link has javascript href ('{href}'). Attempting standard click instead of navigation.")
-                         # Fallback to standard click for javascript links
-                         link_element.click()
-                         sleep(1) # Wait after click
-                         print(f"INFO: Clicked javascript link described as '{description}'")
-                         return {"result": f"Clicked javascript link described as '{description}'."}
-                     else: # Handle other cases like mailto: or relative paths without leading / if needed
-                         print(f"WARN: Unhandled link type or relative path: {href}. Attempting standard click.")
-                         link_element.click() # Try clicking anyway
-                         sleep(1)
-                         print(f"INFO: Clicked element described as '{description}' (non-standard link).")
-                         return {"result": f"Clicked non-standard link described as '{description}'."}
+        # 3b. Find the element
+        element_obj = driver.find_element("xpath", xpath)
 
-                     # Navigate if we have a valid absolute http/https URL
-                     print(f"INFO: Navigating to link URL: {absolute_url}")
-                     driver.get(absolute_url)
-                     sleep(2) # Wait for page load
-                     print(f"INFO: Navigation to link complete.")
-                     return {"result": f"Navigated to link URL from description '{description}'."}
+        # 3c. Check if it's a link and navigate
+        if element_obj.tag_name.lower() == 'a':
+             href = element_obj.get_attribute('href')
+             if href:
+                 print(f"INFO: Element is a link. Extracted href: {href}")
+                 # Handle relative URLs
+                 if href.startswith("/"):
+                     base_url = "/".join(driver.current_url.split("/", 3)[:3])
+                     absolute_url = urljoin(base_url, href)
+                     print(f"INFO: Converted relative URL to absolute: {absolute_url}")
+                 elif href.startswith("http://") or href.startswith("https://"):
+                     absolute_url = href
+                 elif href.startswith("javascript:"):
+                     print(f"INFO: Link has javascript href ('{href}'). Attempting standard click instead of navigation.")
+                     element_obj.click()
+                     sleep(1) # Wait after click
+                     print(f"INFO: Clicked javascript link described as '{description}'")
+                     return {"result": f"Clicked javascript link described as '{description}'."}
+                 else: # Handle other cases like mailto: or relative paths without leading / if needed
+                     print(f"WARN: Unhandled link type or relative path: {href}. Attempting standard click.")
+                     element_obj.click() # Try clicking anyway
+                     sleep(1)
+                     print(f"INFO: Clicked element described as '{description}' (non-standard link).")
+                     return {"result": f"Clicked non-standard link described as '{description}'."}
+
+                 # Navigate if we have a valid absolute http/https URL
+                 if 'absolute_url' in locals():
+                    print(f"INFO: Navigating to link URL: {absolute_url}")
+                    driver.get(absolute_url)
+                    sleep(2) # Wait for page load
+                    print(f"INFO: Navigation to link complete.")
+                    return {"result": f"Navigated to link URL from description '{description}'."}
                  else:
-                    print(f"WARN: Link element found but has no href attribute. Attempting standard click.")
-                    # Fallback to standard click if href is missing
-                    link_element.click()
-                    sleep(1)
-                    print(f"INFO: Clicked element described as '{description}' (link without href).")
-                    return {"result": f"Clicked element described as '{description}' (link without href)."}
-
-             except Exception as e:
-                 print(f"ERROR: Failed to process link element {xpath}: {e}")
-                 return {"error": f"Failed to process link element described as '{description}': {e}"}
+                    return {"error": f"Could not determine absolute url from {href}"}
+             else:
+                print(f"WARN: Link element found but has no href attribute. Attempting standard click.")
+                element_obj.click()
+                sleep(1)
+                print(f"INFO: Clicked element described as '{description}' (link without href).")
+                return {"result": f"Clicked element described as '{description}' (link without href)."}
         else:
             # 3d. Perform standard click
-            print(f"INFO: Element is not a standard link. Performing standard click.")
-            element_obj = driver.find_element("xpath", xpath)
-            # Optional: Scroll into view before clicking
-            # driver.execute_script("arguments[0].scrollIntoView(true);", element_obj)
-            # sleep(0.5)
+            print(f"INFO: Element is not a link. Performing standard click.")
             element_obj.click()
             sleep(1) # Wait a moment after click for potential page changes
             print(f"INFO: Clicked element described as '{description}'")

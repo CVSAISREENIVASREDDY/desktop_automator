@@ -1,6 +1,8 @@
 import pyautogui as pg
 import pyperclip
 import subprocess
+import os
+import fnmatch
 
 def write_code(code: str) -> dict:
     """
@@ -28,18 +30,18 @@ def write_text(text: str) -> dict:
 
 def press_shortcut(shortcut):
     pg.hotkey(*shortcut)
-    
-    
+
+
 def update_files_list():
     directories = [
-        "~/Desktop",
-        "~/Downloads",
-        "~/Documents",
-        "~/Videos",
-        "~/Pictures",
-        "~/Music",
+        os.path.join(os.path.expanduser("~"), "Desktop"),
+        os.path.join(os.path.expanduser("~"), "Downloads"),
+        os.path.join(os.path.expanduser("~"), "Documents"),
+        os.path.join(os.path.expanduser("~"), "Videos"),
+        os.path.join(os.path.expanduser("~"), "Pictures"),
+        os.path.join(os.path.expanduser("~"), "Music"),
     ]
-    skip_files = [
+    skip_patterns = [
         "*/.git/*",
         "*/.vscode/*",
         "*/__pycache__/*",
@@ -50,27 +52,31 @@ def update_files_list():
         "*/Music/*",
         "*/Python-3.10.18/*"
     ]
-    subprocess.run([
-        "find",
-        *directories, 
-        "-type", "f",
-        *(x for file in skip_files for x in ("-not", "-path", f"'{file}'")), 
-        ">", "files.txt"
-    ], shell=True)
+
+    with open("files.txt", "w", encoding="utf-8") as f:
+        for directory in directories:
+            for root, _, files in os.walk(directory):
+                for file in files:
+                    filepath = os.path.join(root, file)
+                    if not any(fnmatch.fnmatch(filepath, pattern) for pattern in skip_patterns):
+                        try:
+                            f.write(filepath + "\n")
+                        except UnicodeEncodeError:
+                            print(f"Skipping file with encoding issues: {filepath}")
 
 
 def get_files_list():
     update_files_list()
-    result = subprocess.run([
-        "cat",
-        "files.txt"
-    ], shell=True, capture_output=True, text=True)
-    return result.stdout
+    with open("files.txt", "r", encoding="utf-8") as f:
+        return f.read()
 
 
 def run_command(command):
-    output = subprocess.run([r"C:\Program Files\Git\bin\bash.exe", "-c", command], shell=True, capture_output=True)
-    return {"output": output.stdout.decode("utf-8"), "error": output.stderr.decode("utf-8")}
+    try:
+        output = subprocess.run(command, shell=True, capture_output=True, text=True)
+        return {"output": output.stdout, "error": output.stderr}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 def take_screenshot():

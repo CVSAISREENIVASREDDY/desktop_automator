@@ -29,4 +29,4 @@ def get_xpath(rawHtml, element):
 
     chain = prompt | llm | parser
     response = chain.invoke({"element": element, "rawHtml": rawHtml})
-    return response
+    return response 

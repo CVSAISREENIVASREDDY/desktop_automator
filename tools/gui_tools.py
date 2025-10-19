@@ -56,12 +56,12 @@ def take_screenshot() -> dict:
     """
     try:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"C:/Users/santh/Desktop/screenshot_{timestamp}.png"
+        desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+        filename = os.path.join(desktop_path, f"screenshot_{timestamp}.png")
         print(f"Action: Taking screenshot and saving to '{filename}'")
         pg.screenshot(filename)
-        abs_path = os.path.abspath(filename)
-        print(f"Action completed: Screenshot saved to '{abs_path}'")
-        return {"result": f"Screenshot saved to {abs_path}"}
+        print(f"Action completed: Screenshot saved to '{filename}'")
+        return {"result": f"Screenshot saved to {filename}"}
     except Exception as e:
         print(f"Error taking screenshot: {e}")
         return {"error": f"Error taking screenshot: {e}"}

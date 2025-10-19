@@ -44,4 +44,4 @@ def get_selected_text():
     """
     pg.hotkey('ctrl', 'c')
     selected_text = pyperclip.paste()
-    return selected_text
+    return selected_text 

@@ -15,6 +15,8 @@ def play_song(song_name: str) -> dict:
     """
     try:
         print(f"Action: Searching and playing song: '{song_name}'")
+        # TODO: This is not a reliable way to wait for Spotify to open.
+        # A more robust solution should be implemented in the future.
         subprocess.run("spotify")
         sleep(5)
         pg.hotkey("ctrl", "k")
